@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Travel Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Load the Inter font
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
+        /* Custom Dark Mode Scrollbar for the output area */
+        .travel-guide::-webkit-scrollbar {
+            width: 8px;
+        }
+        .travel-guide::-webkit-scrollbar-thumb {
+            background-color: #4b5563; /* gray-600 */
+            border-radius: 4px;
+        }
+        .travel-guide::-webkit-scrollbar-track {
+            background-color: #1f2937; /* gray-800 */
+        }
+        
+        .loading-animation {
+            border: 4px solid #4b5563; /* gray-600 */
+            border-top: 4px solid #6366f1; /* indigo-500 */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Button Animation Classes */
+        .btn-animation {
+            transition: all 0.2s ease;
+        }
+        .btn-animation:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); /* indigo-500 shadow */
+        }
+        .btn-animation:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(99, 102, 241, 0.2);
+        }
+
+        /* -------------------------------------------
+        ENHANCED STYLES FOR MARKDOWN OUTPUT (PROSE)
+        ------------------------------------------- 
+        */
+        .prose h1, .prose h2, .prose h3 {
+            color: #818cf8; /* indigo-400 for distinct color */
+            border-bottom: none; /* Remove subtle gray border */
+            margin-top: 1.5rem; /* Ensure vertical separation above */
+            margin-bottom: 0.5rem; /* Space below heading */
+            font-weight: 700;
+        }
+        /* Ensure primary text is visible */
+        .prose p, .prose ul, .prose ol, .prose li {
+            color: #e5e7eb; /* gray-200 */
+            margin-bottom: 0.75rem; /* Better paragraph separation */
+            line-height: 1.6;
+        }
+        .prose a {
+            color: #818cf8; /* indigo-400 for links */
+            text-decoration: underline;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5em; /* Ensure list indentation is visible */
+        }
+        .prose code {
+            background-color: #374151; /* gray-700 for inline code */
+            color: #f3f4f6; /* light text */
+            padding: 0.1em 0.3em;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 font-sans min-h-screen flex flex-col text-gray-100">
+
+    <header class="bg-gray-800 shadow-xl shadow-gray-950/50 p-4 sticky top-0 z-10">
+        <h1 class="text-3xl font-bold text-indigo-400 text-center">🗺️ Vision Travel Guide</h1>
+        <p class="text-sm text-center text-gray-400 mt-1">Upload a photo, and let AI build your itinerary.</p>
+    </header>
+
+    <main class="flex-grow container mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left Panel: Input & Image Preview -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="bg-gray-800 p-6 rounded-xl shadow-xl shadow-gray-950/50 border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4 text-indigo-400">1. Upload Your Destination</h2>
+                
+                <input type="file" id="imageUpload" accept="image/*" class="w-full text-sm text-gray-300
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-indigo-700 file:text-white
+                    hover:file:bg-indigo-600
+                "/>
+                
+                <div class="mt-4 p-3 bg-gray-700 border-2 border-dashed border-gray-600 rounded-lg h-48 flex items-center justify-center">
+                    <!-- Placeholder text updated for dark theme -->
+                    <img id="imagePreview" src="https://placehold.co/400x200/1f2937/a5b4fc?text=Image+Preview" alt="Image Preview" class="max-h-full max-w-full rounded-md object-contain" />
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-xl shadow-gray-950/50 border border-gray-700">
+                <h2 class="text-xl font-semibold mb-4 text-indigo-400">2. Add Context (Optional)</h2>
+                <textarea id="promptText" rows="3" placeholder="e.g., 'What is the best way to spend 3 days here?' or 'I love hiking and local markets.'" 
+                    class="w-full p-3 border border-gray-600 rounded-lg bg-gray-700 text-gray-200 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out">
+                </textarea>
+
+                <div class="flex space-x-4 mt-4">
+                    <button id="generateGuideButton" 
+                        class="btn-animation w-3/4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-indigo-900/50 disabled:opacity-50 flex items-center justify-center"
+                        disabled>
+                        <span id="buttonText">Generate Travel Guide</span>
+                        <div id="loadingIndicator" class="loading-animation hidden ml-3"></div>
+                    </button>
+                    <button id="resetButton" 
+                        class="btn-animation w-1/4 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-2 rounded-xl shadow-lg shadow-gray-950/50 disabled:opacity-50"
+                        disabled>
+                        Reset
+                    </button>
+                </div>
+                
+                <p id="errorMessage" class="text-red-400 text-sm mt-2 hidden"></p>
+            </div>
+        </div>
+
+        <!-- Right Panel: Output Guide -->
+        <div class="lg:col-span-2">
+            <div class="bg-gray-800 p-6 rounded-xl shadow-xl shadow-gray-950/50 min-h-[500px] travel-guide border border-gray-700">
+                <h2 class="text-2xl font-bold mb-4 text-indigo-400 border-b border-gray-700 pb-2">Generated Travel Guide</h2>
+                <!-- Added text-gray-200 to ensure readability of all content -->
+                <div id="guideContent" class="prose max-w-none text-gray-200">
+                    <p class="text-lg text-gray-400 italic">
+                        Upload an image and click "Generate Travel Guide" to get started. 
+                        The AI will analyze the picture and provide a comprehensive guide, including history, local spots, and a suggested itinerary.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="p-4 bg-gray-800 text-center text-sm text-gray-500 mt-8 shadow-inner shadow-gray-950/50">
+        Powered by Gemini API (gemini-2.5-flash-preview-09-2025)
+    </footer>
+
+    <script type="module">
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // --- API Configuration ---
+        // IMPORTANT: Replace the empty string below with your actual Gemini API key if you want to use it.
+        // If left empty, the application will attempt to use the pre-authorized token provided by the Canvas environment.
+        const API_KEY = "AIzaSyAKaQYvWyo7ckZZg_FcM2WOlhORRFo2iFM"; 
+        const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
+        
+        // Construct the API URL, including the API_KEY
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+        // -------------------------
+
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const promptText = document.getElementById('promptText');
+        const generateGuideButton = document.getElementById('generateGuideButton');
+        const resetButton = document.getElementById('resetButton'); // New element
+        const guideContent = document.getElementById('guideContent');
+        const buttonText = document.getElementById('buttonText');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorMessageElement = document.getElementById('errorMessage');
+
+        let base64Image = null;
+
+        // --- Utility Functions ---
+
+        /**
+         * Converts a File object to a Base64 string.
+         * @param {File} file The file to convert.
+         * @returns {Promise<{data: string, mimeType: string}>} The base64 data and mime type.
+         */
+        const fileToBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    // Extract data and mimeType correctly from the data URL format
+                    const dataUrl = reader.result;
+                    const mimeTypeMatch = dataUrl.match(/^data:(.+?);base64,/);
+                    const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : file.type;
+                    const base64Data = dataUrl.split(',')[1];
+                    
+                    if (base64Data) {
+                        resolve({
+                            data: base64Data,
+                            mimeType: mimeType
+                        });
+                    } else {
+                        reject(new Error("Could not extract base64 data."));
+                    }
+                };
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        };
+
+        /**
+         * Simple exponential backoff retry mechanism for API calls.
+         */
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status === 429) {
+                        // Rate limit exceeded, wait and retry
+                        const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                        console.warn(`Rate limit hit (429). Retrying in ${delay / 1000}s...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    if (!response.ok) {
+                        const errorBody = await response.text();
+                        // For non-JSON error responses, fall back to simple status message
+                        try {
+                            const errorJson = JSON.parse(errorBody);
+                            throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorJson.error.message || 'Unknown API Error'}`);
+                        } catch {
+                            throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody.substring(0, 100)}...`);
+                        }
+                    }
+                    return response;
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        console.error("Max retries reached. Failing.", error);
+                        throw error;
+                    }
+                    // For network errors or other non-429 issues, use backoff
+                    const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                    console.warn(`Fetch error. Retrying in ${delay / 1000}s...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        
+        // Function to reset the application state
+        function resetApp() {
+            base64Image = null;
+            imageUpload.value = ''; // Clear file input
+            promptText.value = ''; // Clear optional context
+            
+            // Dark theme initial placeholder
+            imagePreview.src = "https://placehold.co/400x200/1f2937/a5b4fc?text=Image+Preview"; 
+            imagePreview.alt = "Image Preview";
+            
+            generateGuideButton.disabled = true;
+            resetButton.disabled = true;
+            buttonText.textContent = 'Generate Travel Guide';
+            
+            errorMessageElement.textContent = '';
+            errorMessageElement.classList.add('hidden');
+
+            guideContent.innerHTML = `<p class="text-lg text-gray-400 italic">
+                Upload an image and click "Generate Travel Guide" to get started. 
+                The AI will analyze the picture and provide a comprehensive guide, including history, local spots, and a suggested itinerary.
+            </p>`;
+        }
+
+
+        // --- Event Handlers ---
+
+        imageUpload.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            errorMessageElement.textContent = '';
+            errorMessageElement.classList.add('hidden');
+            
+            if (file) {
+                try {
+                    const result = await fileToBase64(file);
+                    base64Image = result;
+                    imagePreview.src = `data:${result.mimeType};base64,${result.data}`;
+                    imagePreview.alt = `Preview of ${file.name}`;
+                    generateGuideButton.disabled = false;
+                    resetButton.disabled = false; // Enable reset once an image is uploaded
+                } catch (error) {
+                    console.error("Error reading file:", error);
+                    base64Image = null;
+                    imagePreview.src = "https://placehold.co/400x200/991b1b/fca5a5?text=Upload+Error"; // Dark theme error placeholder
+                    imagePreview.alt = "Upload Error";
+                    generateGuideButton.disabled = true;
+                    resetButton.disabled = true;
+                    errorMessageElement.textContent = 'Error processing image file.';
+                    errorMessageElement.classList.remove('hidden');
+                }
+            } else {
+                resetApp(); // Reset the app if no file is selected
+            }
+        });
+
+        generateGuideButton.addEventListener('click', async () => {
+            if (!base64Image) {
+                errorMessageElement.textContent = 'Please upload an image first.';
+                errorMessageElement.classList.remove('hidden');
+                return;
+            }
+
+            // UI State: Loading
+            generateGuideButton.disabled = true;
+            resetButton.disabled = true;
+            buttonText.textContent = 'Generating...';
+            loadingIndicator.classList.remove('hidden');
+            errorMessageElement.classList.add('hidden');
+            guideContent.innerHTML = '<div class="flex items-center space-x-3 text-indigo-400"><div class="loading-animation"></div><p>Analyzing image and planning trip...</p></div>';
+
+            try {
+                const userPrompt = promptText.value.trim();
+                // Retaining the grounding tool for high-quality, up-to-date travel information
+                const tools = [{ "google_search": {} }]; 
+                
+                const systemPrompt = `You are a world-class travel guide AI. Your task is to analyze the provided image, identify the location, and generate a concise, comprehensive travel guide in Markdown format. The response must be structured using Markdown headings (#, ##) and lists, and contain the following sections, using brief, punchy summaries for maximum readability:
+                1. Location Identified: [The identified place name and country]
+                2. History & Significance: [A very short, 2-3 sentence summary.]
+                3. Nearby Attractions: [A bulleted list of 3 must-see spots. Each item MUST be formatted as a Markdown link, where the link URL is a Google search query for the attraction's name, e.g., [Attraction Name](https://www.google.com/search?q=Attraction+Name). Ensure the search query is URL-encoded (e.g., replace spaces with '+').]
+                4. Best Local Cuisine/Food: [A bulleted list of 3 must-try dishes or restaurants. Each item MUST be formatted as a Markdown link, where the link URL is a Google search query for the dish/restaurant name, e.g., [Dish Name](https://www.google.com/search?q=Dish+Name). Ensure the search query is URL-encoded.]
+                5. Suggested 3-Day Itinerary: [A day-by-day plan for a 3-day trip, using short, action-oriented descriptions for each activity.]
+
+                If the user provides an additional prompt (optional text input), incorporate that request into the suggested itinerary. For example, if they mention 'I love hiking', include a hiking activity.
+
+                Ensure the entire response is visually appealing and easy to read using only Markdown formatting. Do not include any preambles or explanations outside of the generated guide content.`;
+
+                const parts = [
+                    { text: "Analyze this image and generate the travel guide following the system instructions." },
+                    { inlineData: { data: base64Image.data, mimeType: base64Image.mimeType } }
+                ];
+
+                if (userPrompt) {
+                    // Prepend user's specific request for the model to prioritize
+                    parts.unshift({ text: `User's specific travel request: ${userPrompt}` });
+                }
+
+                const payload = {
+                    contents: [{ role: "user", parts: parts }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    tools: tools // Include search grounding
+                };
+
+                const response = await fetchWithRetry(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                
+                const generatedText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (generatedText) {
+                    // Use marked.parse to convert Markdown output to HTML
+                    guideContent.innerHTML = marked.parse(generatedText);
+                } else {
+                    guideContent.innerHTML = '<p class="text-red-400 font-semibold">Could not generate a guide. The image might be too ambiguous or the service returned an empty response. Please try a different image.</p>';
+                }
+
+            } catch (error) {
+                console.error("Full API generation error:", error);
+                errorMessageElement.textContent = `An error occurred during guide generation: ${error.message}`;
+                errorMessageElement.classList.remove('hidden');
+                guideContent.innerHTML = `<p class="text-red-400 font-semibold">Generation failed. Please check the console for details.</p>`;
+
+            } finally {
+                // UI State: Ready
+                generateGuideButton.disabled = false;
+                buttonText.textContent = 'Generate Travel Guide';
+                loadingIndicator.classList.add('hidden');
+                resetButton.disabled = false; // Enable reset button on completion/failure
+            }
+        });
+
+        // Attach reset handler
+        resetButton.addEventListener('click', resetApp);
+
+        // Initialize marked.js for Markdown parsing
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js';
+        script.onload = () => {
+            // Configure marked to open links in new tabs and ensure proper list rendering
+            marked.use({
+                renderer: {
+                    link(href, title, text) {
+                        return `<a href="${href}"${title ? ` title="${title}"` : ''} target="_blank" rel="noopener noreferrer">${text}</a>`;
+                    }
+                }
+            });
+            console.log("Marked.js loaded.");
+        };
+        document.head.appendChild(script);
+
+    </script>
+</body>
+</html>
